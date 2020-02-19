@@ -29,6 +29,7 @@ namespace jax{
   * \todo template this to hold any arithmetic type in pixels
   * \todo consolidate Camera and Image variable (current has redundant information)
   */
+  template<typename P>
   class Image{
 
   public:
@@ -42,10 +43,7 @@ namespace jax{
       float foc;///<\brief focal length of camera
       float2 dpix;///<\brief real world size of each pixel
       long long int timeStamp;///<\brief seconds since Jan 01, 1070
-      /**
-       * \brief identical to the image size param, but used in GPU camera modification method
-       */
-      uint2 size;
+      uint2 size;///<\brief identical to the image size param, but used in GPU camera modification method
       __device__ __host__ Camera();
       __device__ __host__ Camera(uint2 size);
       __device__ __host__ Camera(uint2 size, float3 cam_pos, float3 cam_rot);
@@ -56,7 +54,7 @@ namespace jax{
     uint2 size;///<\brief size of image
     unsigned int colorDepth;///<\brief colorDepth of image
     Camera camera;///<\brief Camera struct holding all camera parameters
-    Unity<unsigned char>* pixels;///<\brief pixels of image flattened row-wise
+    Unity<P>* pixels;///<\brief pixels of image flattened row-wise
 
     Image();///< \brief default constructor
     /**
@@ -70,7 +68,7 @@ namespace jax{
     * \param pixels - pixel values flattened row-wise within a Unity structure
     * \see Unity
     */
-    Image(uint2 size, unsigned int colorDepth, Unity<unsigned char>* pixels);
+    Image(uint2 size, unsigned int colorDepth, Unity<P>* pixels);
     /**
     * \brief Primary constructor utilizing jax image io. 
     * \details This constructor uses a file path to a jpg/jpeg, png or tif/tiff 
@@ -149,25 +147,12 @@ namespace jax{
   * \param size - size of image {width,height}
   * \param pixels - pixels flattened row-wise
   * \param border - border to apply to pixels {x,y}
-  * \returns Unity<unsigned char>* of pixels with border applied flattened row-wise
+  * \returns Unity<P>* of pixels with border applied flattened row-wise
   * \see Unity
   */
-  Unity<unsigned char>* addBufferBorder(uint2 size, jax::Unity<unsigned char>* pixels, int2 border);
+  Unity<P>* addBufferBorder(uint2 size, jax::Unity<P>* pixels, int2 border);
   /**
-  * \brief Generate a new image with a border. 
-  * \details This method takes in a Unity<unsigned char> pixel array and will add 
-  * a border to it. If the border is positive, it will return a larger image 
-  * with 0'd pixels added as the border. If the border is negative, it will 
-  * remove pixels from the image and return a smaller image. 
-  * \param size - size of image {width,height}
-  * \param pixels - pixels flattened row-wise
-  * \param border - border to apply to pixels {x,y}
-  * \returns Unity<unsigned char>* of pixels with border applied flattened row-wise
-  * \see Unity
-  */
-  Unity<float>* addBufferBorder(uint2 size, jax::Unity<float>* pixels, int2 border);
-  /**
-  * \brief Convert Unity<float>* to Unity<unsigned char>* 
+  * \brief Convert Unity<float>* to Unity<P>* 
   * \details This method will determine min and max pixel values 
   * and use those to convert the float set to unsigned char values 
   * between 0-255, where 0 is min and 255 is max. 
@@ -176,9 +161,9 @@ namespace jax{
   * \see Unity
   * \see convertToCharImage
   */
-  Unity<unsigned char>* convertImageToChar(Unity<float>* pixels);
+  Unity<P>* convertImageToChar(Unity<float>* pixels);
   /**
-  * \brief Convert Unity<unsigned char>* to Unity<float>*
+  * \brief Convert Unity<P>* to Unity<float>*
   * \details This method will simply convert unsigned char values to 
   * floats without changing the information at all. 
   * \param pixels - pixels in unsigned char representation
@@ -186,7 +171,7 @@ namespace jax{
   * \see Unity
   * \see convertToFltImage
   */
-  Unity<float>* convertImageToFlt(Unity<unsigned char>* pixels);
+  Unity<float>* convertImageToFlt(Unity<P>* pixels);
   /**
   * \brief Normalize float values in Unity from 0-1.
   * \details This method will determine min and max for the values 
@@ -196,7 +181,7 @@ namespace jax{
   * \see normalize(unsigned long, float*, float2)
   * \todo add option to normalize between two numbers
   */
-  void normalizeImage(Unity<float>* pixels);
+  void normalizeImage(Unity<P>* pixels);
   /**
   * \brief Normalize float values in Unity from 0-1.
   * \details This method will use the provided min and max for the values 
@@ -209,7 +194,7 @@ namespace jax{
   * \warning if the minMax values here are incorrect then normalization will 
   * be incorrect
   */
-  void normalizeImage(Unity<float>* pixels, float2 minMax);
+  void normalizeImage(Unity<P>* pixels, float2 minMax);
   /**
   * \brief Convert pixel values to grayscale.
   * \details This method will take pixels of a higher colorDepth and 
@@ -219,7 +204,7 @@ namespace jax{
   * \see Unity
   * \see generateBW
   */
-  void convertToBW(Unity<unsigned char>* pixels, unsigned int colorDepth);
+  void convertToBW(Unity<P>* pixels, unsigned int colorDepth);
   /**
   * \brief Convert pixel values to RGB.
   * \details This method will take pixels and 
@@ -231,7 +216,7 @@ namespace jax{
   * \note going from a colorDepth of 1 or 2 is permitted but will not be perfect. 
   * \todo improve colorDepth upsample procedur
   */
-  void convertToRGB(Unity<unsigned char>* pixels, unsigned int colorDepth);
+  void convertToRGB(Unity<P>* pixels, unsigned int colorDepth);
 
   /**
   * \brief Generate 3x3 fundamental matrix from 2 camera matrices. 
@@ -275,22 +260,7 @@ namespace jax{
   * \note No need to pass in colorDepth as that can be determined by 
   * looking at numElements of pixels and size of image.
   */
-  Unity<int2>* generatePixelGradients(uint2 imageSize, Unity<unsigned char>* pixels);
-  /**
-  * \brief Generate gradients for float image. 
-  * \details This method generates float2 gradients {x,y} for every pixel with borders 
-  * being symmetrized with an offset inward. The symmetrization is based on finite 
-  * difference and gradient approximation methods for images. 
-  * \param imageSize - {width,height} of image
-  * \param pixels - pixels of image flattened row-wise.
-  * \returns Unity<float2>* that has gradients {x,y} stored in same order as pixel
-  * \see Unity 
-  * \see calculatePixelGradients(uint2,float*,int2*)
-  * \note No need to pass in colorDepth as that can be determined by 
-  * looking at numElements of pixels and size of image.
-  */
-  Unity<float2>* generatePixelGradients(uint2 imageSize, Unity<float>* pixels);
-
+  Unity<P[2]>* generatePixelGradients(uint2 imageSize, Unity<P>* pixels);
   /**
   * \brief Ensure that an unsigned char image can be binned to a certain depth. 
   * \details This method is used to ensure that the an image can be 
@@ -306,7 +276,7 @@ namespace jax{
   * \note No need to pass in colorDepth as that can be determined by 
   * looking at numElements of pixels and size of image.
   */
-  void makeBinnable(uint2 &size, Unity<unsigned char>* pixels, int plannedDepth);
+  void makeBinnable(uint2 &size, Unity<P>* pixels, int plannedDepth);
   /**
   * \brief Ensure that a float image can be binned to a certain depth. 
   * \details This method is used to ensure that the an image can be 
@@ -330,13 +300,13 @@ namespace jax{
   * is half the width and half height of the original image. 
   * \param imageSize - {width,height} of image
   * \param pixels - pixels of image flattened row-wise
-  * \returns - Unity<unsigned char>* holding the binned version of the provided image
+  * \returns - Unity<P>* holding the binned version of the provided image
   * \see Unity
   * \see binImage(uint2,unsigned int,unsigned char*,unsigned char*)
   * \note No need to pass in colorDepth as that can be determined by 
   * looking at numElements of pixels and size of image.
   */
-  Unity<unsigned char>* bin(uint2 imageSize, Unity<unsigned char>* pixels);
+  Unity<P>* bin(uint2 imageSize, Unity<P>* pixels);
   /**
   * \brief Downsample an float image by a factor of 2.
   * \details This method will generate an image from a provided image that 
@@ -357,13 +327,13 @@ namespace jax{
   * is double the width and half height of the original image. 
   * \param imageSize - {width,height} of image
   * \param pixels - pixels of image flattened row-wise
-  * \returns - Unity<unsigned char>* holding the upsampled version of the provided image
+  * \returns - Unity<P>* holding the upsampled version of the provided image
   * \see Unity
   * \see upsampleImage(uint2,unsigned int,unsigned char*,unsigned char*)
   * \note No need to pass in colorDepth as that can be determined by 
   * looking at numElements of pixels and size of image.
   */
-  Unity<unsigned char>* upsample(uint2 imageSize, Unity<unsigned char>* pixels);  /**
+  Unity<P>* upsample(uint2 imageSize, Unity<P>* pixels);  /**
   * \brief Upsample an float image by a factor of 2.
   * \details This method will generate an image from a provided image that 
   * is double the width and half height of the original image. 
@@ -385,13 +355,13 @@ namespace jax{
   * \param imageSize - {width,height} of image
   * \param pixels - pixels of image flattened row-wise
   * \param outputPixelWidth - the desired size of a pixel in the returned Unity
-  * \returns - Unity<unsigned char>* holding the scaled version of the provided image
+  * \returns - Unity<P>* holding the scaled version of the provided image
   * \see Unity
   * \see bilinearInterpolation(uint2,unsigned int,unsigned char*,unsigned char*,float)
   * \note No need to pass in colorDepth as that can be determined by 
   * looking at numElements of pixels and size of image.
   */
-  Unity<unsigned char>* scaleImage(uint2 imageSize, Unity<unsigned char>* pixels, float outputPixelWidth);
+  Unity<P>* scaleImage(uint2 imageSize, Unity<P>* pixels, float outputPixelWidth);
   /**
   * \brief Scale an float image by a specified factor.
   * \details This method will generate an image from a provided image that 
@@ -427,7 +397,7 @@ namespace jax{
   * \see getSymmetrizedCoord
   * \see Unity
   */
-  Unity<float>* convolve(uint2 imageSize, Unity<unsigned char>* pixels, int2 kernelSize, float* kernel, bool symmetric = true);
+  Unity<float>* convolve(uint2 imageSize, Unity<P>* pixels, int2 kernelSize, float* kernel, bool symmetric = true);
   /**
   * \brief Convolve an float image with a specified kernel.
   * \details This method will convolve and image with a provided 
